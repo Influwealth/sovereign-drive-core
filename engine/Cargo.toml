@@ -1,0 +1,26 @@
+[package]
+name = "sovereigndrive-engine"
+version = "0.2.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "SovereignDrive content-addressed storage and vault engine"
+
+[lib]
+name = "sovereigndrive_engine"
+crate-type = ["cdylib", "rlib", "staticlib"]
+
+[dependencies]
+anyhow = "1"
+argon2 = "0.5"
+base64 = "0.22"
+blake3 = "1"
+chacha20poly1305 = "0.10"
+parking_lot = "0.12"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+zstd = "0.13"
+zeroize = { version = "1", features = ["zeroize_derive"] }
+
+[dev-dependencies]
+tempfile = "3"
