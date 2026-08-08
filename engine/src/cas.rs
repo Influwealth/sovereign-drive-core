@@ -97,6 +97,11 @@ impl CasStore {
     pub fn len(&self) -> usize { self.inner.read().len() }
 }
 
+/// Validate an encoded CAS object without writing it. Used by fuzz/property harnesses.
+pub fn validate_encoded_object(hash: &str, bytes: &[u8]) -> Result<CasObject> {
+    decode_object(hash, bytes)
+}
+
 fn object_path(root: &Path, hash: &str) -> Result<PathBuf> {
     if hash.len() != 64 || !hash.bytes().all(|b| b.is_ascii_hexdigit()) { return Err(anyhow!("invalid CAS hash")); }
     Ok(root.join("objects").join(&hash[..2]).join(hash))
@@ -115,9 +120,7 @@ fn recover_temporary_objects(root: &Path) -> Result<()> {
         if !prefix.is_dir() { continue; }
         for entry in fs::read_dir(&prefix)? {
             let path = entry?.path();
-            if path.extension().and_then(|v| v.to_str()).is_some_and(|v| v.starts_with("tmp-")) {
-                let _ = fs::remove_file(path);
-            }
+            if path.extension().and_then(|v| v.to_str()).is_some_and(|v| v.starts_with("tmp-")) { let _ = fs::remove_file(path); }
         }
     }
     Ok(())
