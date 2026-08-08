@@ -29,11 +29,32 @@ jobs:
       - run: cargo test --all-targets
       - run: cargo clippy --all-targets --all-features -- -D warnings
 
-  security:
-    name: Dependency audit
+  wasm:
+    name: WASM bindings check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions-rust-lang/audit@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          working-directory: engine
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: bindings/wasm
+      - run: cargo check --manifest-path bindings/wasm/Cargo.toml --target wasm32-unknown-unknown
+
+  security:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo generate-lockfile
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-audit
+          key: cargo-audit-${{ runner.os }}
+      - run: command -v cargo-audit >/dev/null || cargo install cargo-audit --locked
+      - run: cargo audit
