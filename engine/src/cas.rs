@@ -27,27 +27,27 @@ impl CasStore {
         Ok(Self { inner: Arc::new(RwLock::new(HashMap::new())), root: Some(Arc::new(root)) })
     }
 
+    /// Store an already-canonical payload. The returned hash identifies `payload`.
     pub fn put(&self, payload: Vec<u8>, compressed: bool) -> Result<String> {
-        let hash = blake3::hash(if compressed { &payload } else { &payload }).to_hex().to_string();
+        let hash = blake3::hash(&payload).to_hex().to_string();
         self.put_hashed(hash, payload, compressed)
     }
 
+    /// Store a representation of canonical content. The hash always identifies `content`.
     pub fn put_content(&self, content: &[u8], stored_payload: Vec<u8>, compressed: bool) -> Result<String> {
         let hash = blake3::hash(content).to_hex().to_string();
         self.put_hashed(hash, stored_payload, compressed)
     }
 
     fn put_hashed(&self, hash: String, payload: Vec<u8>, compressed: bool) -> Result<String> {
-        if self.exists(&hash) {
-            return Ok(hash);
-        }
+        if self.exists(&hash) { return Ok(hash); }
         let obj = CasObject { hash: hash.clone(), compressed, size: payload.len(), payload };
         if let Some(root) = &self.root {
-            let path = object_path(root, &hash);
+            let path = object_path(root, &hash)?;
             if let Some(parent) = path.parent() { fs::create_dir_all(parent)?; }
-            let tmp = path.with_extension("tmp");
+            let tmp = path.with_extension(format!("tmp-{}", std::process::id()));
             fs::write(&tmp, encode_object(&obj)?)?;
-            fs::rename(&tmp, &path).with_context(|| format!("commit CAS object {}", hash))?;
+            fs::rename(&tmp, &path).with_context(|| format!("commit CAS object {hash}"))?;
         }
         self.inner.write().insert(hash.clone(), obj);
         Ok(hash)
@@ -56,7 +56,7 @@ impl CasStore {
     pub fn get(&self, hash: &str) -> Option<CasObject> {
         if let Some(obj) = self.inner.read().get(hash).cloned() { return Some(obj); }
         let root = self.root.as_ref()?;
-        let path = object_path(root, hash);
+        let path = object_path(root, hash).ok()?;
         let bytes = fs::read(path).ok()?;
         let obj = decode_object(hash, &bytes).ok()?;
         self.inner.write().insert(hash.to_owned(), obj.clone());
@@ -65,19 +65,25 @@ impl CasStore {
 
     pub fn get_content(&self, hash: &str) -> Result<Vec<u8>> {
         let obj = self.get(hash).ok_or_else(|| anyhow!("CAS object not found: {hash}"))?;
-        if obj.compressed { crate::compression::decompress(&obj.payload) } else { Ok(obj.payload) }
+        let content = if obj.compressed { crate::compression::decompress(&obj.payload)? } else { obj.payload };
+        let actual = blake3::hash(&content).to_hex().to_string();
+        if actual != hash { return Err(anyhow!("CAS integrity check failed for {hash}")); }
+        Ok(content)
     }
 
     pub fn exists(&self, hash: &str) -> bool {
         if self.inner.read().contains_key(hash) { return true; }
-        self.root.as_ref().is_some_and(|root| object_path(root, hash).is_file())
+        self.root.as_ref().and_then(|root| object_path(root, hash).ok()).is_some_and(|p| p.is_file())
     }
 
     pub fn len(&self) -> usize { self.inner.read().len() }
 }
 
-fn object_path(root: &Path, hash: &str) -> PathBuf {
-    root.join("objects").join(&hash[..2.min(hash.len())]).join(hash)
+fn object_path(root: &Path, hash: &str) -> Result<PathBuf> {
+    if hash.len() != 64 || !hash.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(anyhow!("invalid CAS hash"));
+    }
+    Ok(root.join("objects").join(&hash[..2]).join(hash))
 }
 
 fn encode_object(obj: &CasObject) -> Result<Vec<u8>> {
@@ -106,16 +112,26 @@ mod tests {
     fn persistent_round_trip() {
         let dir = tempfile::tempdir().unwrap();
         let store = CasStore::persistent(dir.path()).unwrap();
-        let hash = store.put(b"hello".to_vec(), false).unwrap();
+        let hash = store.put_content(b"hello", b"hello".to_vec(), false).unwrap();
         let reopened = CasStore::persistent(dir.path()).unwrap();
         assert_eq!(reopened.get_content(&hash).unwrap(), b"hello");
         assert!(reopened.exists(&hash));
     }
 
     #[test]
-    fn object_hash_is_stable_for_raw_content() {
-        let store = CasStore::default();
-        let hash = store.put_content(b"hello", b"stored".to_vec(), true).unwrap();
-        assert_eq!(hash, blake3::hash(b"hello").to_hex().to_string());
+    fn compressed_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::persistent(dir.path()).unwrap();
+        let raw = vec![b'a'; 4096];
+        let compressed = crate::compression::compress(&raw, 8).unwrap();
+        let hash = store.put_content(&raw, compressed, true).unwrap();
+        assert_eq!(store.get_content(&hash).unwrap(), raw);
+    }
+
+    #[test]
+    fn rejects_invalid_hash_paths() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::persistent(dir.path()).unwrap();
+        assert!(!store.exists("../escape"));
     }
 }
