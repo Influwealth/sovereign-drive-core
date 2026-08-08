@@ -22,4 +22,5 @@ zstd = "0.13"
 zeroize = { version = "1", features = ["zeroize_derive"] }
 
 [dev-dependencies]
+proptest = "1"
 tempfile = "3"
