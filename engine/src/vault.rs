@@ -1,8 +1,6 @@
 use crate::crypto;
 use anyhow::{anyhow, Result};
-use rand::RngCore;
 use serde::{Deserialize, Serialize};
-use zeroize::Zeroizing;
 
 const SALT_LEN: usize = 16;
 
@@ -15,14 +13,14 @@ pub struct EncryptedVault {
 
 impl EncryptedVault {
     pub fn seal(passphrase: &str, payload: &[u8]) -> Result<Self> {
-        let mut salt = [0u8; SALT_LEN];
-        rand::rngs::OsRng.fill_bytes(&mut salt);
+        let salt = crypto::generate_salt();
         let key = crypto::derive_key(passphrase, &salt)?;
         let (ciphertext, nonce) = crypto::encrypt(&key, payload)?;
         Ok(Self { salt, nonce, ciphertext })
     }
 
     pub fn open(&self, passphrase: &str) -> Result<Vec<u8>> {
+        self.validate()?;
         let key = crypto::derive_key(passphrase, &self.salt)?;
         crypto::decrypt(&key, &self.nonce, &self.ciphertext)
     }
@@ -31,11 +29,6 @@ impl EncryptedVault {
         if self.ciphertext.len() < 16 { return Err(anyhow!("vault ciphertext is too short")); }
         Ok(())
     }
-}
-
-#[allow(dead_code)]
-fn zeroized_passphrase(passphrase: &str) -> Zeroizing<Vec<u8>> {
-    Zeroizing::new(passphrase.as_bytes().to_vec())
 }
 
 #[cfg(test)]
@@ -54,5 +47,12 @@ mod tests {
         let mut vault = EncryptedVault::seal("password", b"secret").unwrap();
         vault.ciphertext[0] ^= 1;
         assert!(vault.open("password").is_err());
+    }
+
+    #[test]
+    fn independent_seals_use_distinct_nonce_or_salt() {
+        let a = EncryptedVault::seal("password", b"secret").unwrap();
+        let b = EncryptedVault::seal("password", b"secret").unwrap();
+        assert!(a.salt != b.salt || a.nonce != b.nonce);
     }
 }
