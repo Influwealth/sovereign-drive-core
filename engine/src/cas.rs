@@ -64,7 +64,7 @@ impl CasStore {
                         if let Ok(dir) = fs::File::open(parent) { let _ = dir.sync_all(); }
                     }
                 }
-                Err(error) if path.is_file() => { let _ = fs::remove_file(&tmp); }
+                Err(_error) if path.is_file() => { let _ = fs::remove_file(&tmp); }
                 Err(error) => { let _ = fs::remove_file(&tmp); return Err(error).with_context(|| format!("commit CAS object {hash}")); }
             }
         }
