@@ -1,0 +1,21 @@
+[package]
+name = "sovereigndrive-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.sovereigndrive-engine]
+path = "../engine"
+
+[[bin]]
+name = "cas_decode"
+path = "fuzz_targets/cas_decode.rs"
+test = false
+doc = false
+bench = false

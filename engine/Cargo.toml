@@ -1,0 +1,29 @@
+[package]
+name = "sovereigndrive-engine"
+version = "0.2.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "SovereignDrive content-addressed storage and vault engine"
+
+[lib]
+name = "sovereigndrive_engine"
+crate-type = ["cdylib", "rlib", "staticlib"]
+
+[dependencies]
+anyhow = "1"
+argon2 = "0.5"
+blake3 = "1"
+chacha20poly1305 = "0.10"
+parking_lot = "0.12"
+rand = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+zstd = "0.13"
+zeroize = { version = "1", features = ["zeroize_derive"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }
+
+[dev-dependencies]
+proptest = "1"
+tempfile = "3"
