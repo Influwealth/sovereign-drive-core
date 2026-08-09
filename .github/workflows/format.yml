@@ -18,8 +18,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - name: Format Rust sources
-        run: cargo fmt --all --manifest-path engine/Cargo.toml
+      - name: Format engine
+        working-directory: engine
+        run: cargo fmt --all
+      - name: Format WASM bindings
+        working-directory: bindings/wasm
+        run: cargo fmt --all
       - uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "chore: apply rustfmt"
