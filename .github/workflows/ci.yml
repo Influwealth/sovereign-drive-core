@@ -40,6 +40,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: bindings/wasm
+      - run: cargo fmt --manifest-path bindings/wasm/Cargo.toml -- --check
       - run: cargo check --manifest-path bindings/wasm/Cargo.toml --target wasm32-unknown-unknown
 
   security:
@@ -51,10 +52,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo generate-lockfile
-      - uses: actions/cache@v4
+      - uses: taiki-e/install-action@v2.85.2
         with:
-          path: ~/.cargo/bin/cargo-audit
-          key: cargo-audit-${{ runner.os }}
-      - run: command -v cargo-audit >/dev/null || cargo install cargo-audit --locked
+          tool: cargo-audit
       - run: cargo audit
