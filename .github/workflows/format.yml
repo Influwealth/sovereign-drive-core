@@ -1,0 +1,26 @@
+name: Format
+
+on:
+  push:
+    branches: ['feat/**']
+
+permissions:
+  contents: write
+
+jobs:
+  rustfmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name }}
+          persist-credentials: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Format Rust sources
+        run: cargo fmt --all --manifest-path engine/Cargo.toml
+      - uses: stefanzweifel/git-auto-commit-action@v7
+        with:
+          commit_message: "chore: apply rustfmt"
+          file_pattern: "engine/**/*.rs bindings/wasm/**/*.rs"
