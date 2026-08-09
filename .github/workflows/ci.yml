@@ -56,3 +56,19 @@ jobs:
         with:
           tool: cargo-audit
       - run: cargo audit
+
+  typescript:
+    name: TypeScript runtime checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bindings/ts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: bindings/ts/package.json
+      - run: npm install --no-audit --no-fund
+      - run: npm run typecheck
